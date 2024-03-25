@@ -9,6 +9,7 @@ use url::Url;
 struct Settings {
     pub prefix: Option<String>,
     pub suffix: Option<String>,
+    pub reload: Option<bool>,
     pub lyrics: Vec<String>,
     pub interval: u32 // In seconds.
 }
@@ -34,24 +35,42 @@ struct StatusUpdateMessage {
 
 static WEBSOCKET_URL: &str = "ws://127.0.0.1:6463/rpc?v=1";
 
+/// Reads the configuration file.
+fn read_config() -> Result<Settings, Box<dyn Error>> {
+    Ok(
+        Config::builder()
+            .add_source(config::File::with_name("config"))
+            .build()?
+            .try_deserialize::<Settings>()?
+    )
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Parse the configuration file.
-    let settings = Config::builder()
-        .add_source(config::File::with_name("config"))
-        .build()?
-        .try_deserialize::<Settings>()?;
-
-    let prefix = settings.prefix.as_deref().unwrap_or("");
-    let suffix = settings.suffix.as_deref().unwrap_or("");
+    let settings = read_config()?;
+    let reload = settings.reload;
 
     // Connect to the websocket.
     let uri = Url::parse(WEBSOCKET_URL)?;
     let (mut ws_stream, _) = connect(uri)?;
 
     // Send the songs to the websocket on an interval.
-    let duration = Duration::from_secs(settings.interval as u64);
     loop {
+        let mut duration = Duration::from_secs(
+            settings.interval as u64);
+        let mut prefix = settings.prefix
+            .clone().unwrap_or("".to_string());
+        let mut suffix = settings.suffix
+            .clone().unwrap_or("".to_string());
+        
+        if reload.unwrap_or(false) {
+            let settings = read_config()?;
+            duration = Duration::from_secs(settings.interval as u64);
+            prefix = settings.prefix.unwrap_or("".to_string());
+            suffix = settings.suffix.unwrap_or("".to_string());
+        }
+        
         for lyric in &settings.lyrics {
             // Prepare the websocket message.
             let message = StatusUpdateMessage {
