@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::error::Error;
 use config::Config;
 use serde::{Deserialize, Serialize};
@@ -63,15 +65,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .clone().unwrap_or("".to_string());
         let mut suffix = settings.suffix
             .clone().unwrap_or("".to_string());
-        
+
+        let mut lyrics = settings.lyrics.clone();
         if reload.unwrap_or(false) {
             let settings = read_config()?;
+            lyrics = settings.lyrics;
             duration = Duration::from_secs(settings.interval as u64);
             prefix = settings.prefix.unwrap_or("".to_string());
             suffix = settings.suffix.unwrap_or("".to_string());
         }
-        
-        for lyric in &settings.lyrics {
+
+        for lyric in lyrics {
             // Prepare the websocket message.
             let message = StatusUpdateMessage {
                 cmd: "status".to_string(),
